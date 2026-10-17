@@ -19,6 +19,7 @@ import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { FIT_OFFICIAL_MENU } from './OfficialMenu';
+import { SAMPLE_PAGE_DIAGNOSTICS } from './PageDiagnostics';
 
 const CLOUD_URL = 'https://endfield.hypergryph.com/cloud';
 const DOMAIN = 0x1EFD;
@@ -30,6 +31,12 @@ interface OfficialMenuLayout {
   height: number;
   left: window.Rect;
   right: window.Rect;
+}
+
+/** 采样结果只回到当前页面，不保存或上传。 */
+interface PageDiagnostics {
+  id: number;
+  message: string;
 }
 
 /** 为官方弹出页保留独立控制器及 opener 关系。 */
@@ -70,6 +77,8 @@ struct Index {
   private lastBackAt: number = 0;
   private toolsTimer: number = 0;
   private requestFailures: string[] = [];
+  @State private diagnosticsSampling: boolean = false;
+  private diagnosticsId: number = 0;
 
   /** 保留请求阶段及错误码，诊断不采集参数或登录凭据。 */
   private recordRequestFailure(kind: string, code: number, request: WebResourceRequest): void {
@@ -117,6 +126,7 @@ struct Index {
   }
 
   onPageHide(): void {
+    this.diagnosticsSampling = false;
     this.hideTools();
     this.popup?.close();
     this.releaseInput();
@@ -141,11 +151,20 @@ struct Index {
     clearTimeout(this.toolsTimer);
   }
 
-  /** 首次返回保留游戏现场，只有两秒内再次返回才交给系统退出。 */
+  /** 二次返回显式销毁入口，避免系统默认返回仅将应用置于后台。 */
   onBackPress(): boolean {
     this.releaseInput();
     const now = Date.now();
-    if (now - this.lastBackAt < 2000) return false;
+    if (now - this.lastBackAt < 2000) {
+      this.hideTools();
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      hilog.info(DOMAIN, 'EndfieldCloud', '{"event":"ability.terminate_requested"}');
+      context.terminateSelf().catch((err: BusinessError) => {
+        hilog.error(DOMAIN, 'EndfieldCloud', '{"event":"ability.terminate_failed","code":%{public}d}', err.code);
+        this.operationFailed = true;
+      });
+      return true;
+    }
     this.lastBackAt = now;
     this.toolsVisible = true;
     clearTimeout(this.toolsTimer);
@@ -224,49 +243,34 @@ struct Index {
         resources.getStringSync($r('app.string.viewport_size').id),
         resources.getStringSync($r('app.string.screen_size').id),
         resources.getStringSync($r('app.string.visible_size').id),
-        resources.getStringSync($r('app.string.safe_area').id)
+        resources.getStringSync($r('app.string.safe_area').id),
+        resources.getStringSync($r('app.string.sample_duration').id),
+        resources.getStringSync($r('app.string.seconds').id),
+        resources.getStringSync($r('app.string.presented_fps').id),
+        resources.getStringSync($r('app.string.fps_unit').id),
+        resources.getStringSync($r('app.string.sample_dropped').id),
+        resources.getStringSync($r('app.string.sample_decode').id),
+        resources.getStringSync($r('app.string.milliseconds').id),
+        resources.getStringSync($r('app.string.not_reported').id),
+        resources.getStringSync($r('app.string.sample_changed').id),
+        resources.getStringSync($r('app.string.sample_long_tasks').id)
       ];
+      this.getUIContext().getPromptAction().showToast({ message: $r('app.string.sampling_hint'), duration: 5000 });
     } catch (error) {
-      hilog.error(DOMAIN, 'EndfieldCloud', '{"event":"diagnostics.labels_failed","code":%{public}d}',
+      hilog.error(DOMAIN, 'EndfieldCloud', '{"event":"diagnostics.start_failed","code":%{public}d}',
         (error as BusinessError).code);
       this.operationFailed = true;
       return;
     }
-    const script = `(() => {
-      const labels = ${JSON.stringify(labels)};
-      const video = document.querySelector('#WelinkGameVideo') || document.querySelector('video');
-      const network = labels[7] + (navigator.onLine ? labels[8] : labels[9]) + '\\n';
-      let media = labels[0];
-      if (video instanceof HTMLVideoElement) {
-        const quality = video.getVideoPlaybackQuality();
-        media = labels[1] + video.videoWidth + ' × ' + video.videoHeight +
-          '\\n' + labels[2] + quality.totalVideoFrames + '\\n' + labels[3] + quality.droppedVideoFrames +
-          '\\n' + labels[4] + (video.paused ? labels[5] : labels[6]);
-      } else if (video instanceof HTMLCanvasElement) {
-        media = labels[10] + ' ' + video.width + ' × ' + video.height;
-      }
-      const vv = window.visualViewport;
-      const style = getComputedStyle(document.documentElement);
-      const safe = ['top', 'right', 'bottom', 'left'].map(side =>
-        style.getPropertyValue('--safe-area-inset-' + side).trim() || '0px');
-      const layout = [labels[11] + innerWidth + ' × ' + innerHeight,
-        labels[12] + screen.width + ' × ' + screen.height + ' / ' + devicePixelRatio,
-        labels[13] + (vv ? Math.round(vv.width) + ' × ' + Math.round(vv.height) : '—'),
-        labels[14] + safe.join(' / ')];
-      return network + media + '\\n\\n' + layout.join('\\n');
-    })()`;
-    this.controller.runJavaScriptExt(script, (err, result) => {
+    this.diagnosticsSampling = true;
+    const script = `${SAMPLE_PAGE_DIAGNOSTICS}(${JSON.stringify(labels)}, ${++this.diagnosticsId})`;
+    this.controller.runJavaScript(script, (err) => {
       if (err) {
+        this.diagnosticsSampling = false;
         hilog.error(DOMAIN, 'EndfieldCloud', '{"event":"diagnostics.failed","code":%{public}d}', err.code);
         this.operationFailed = true;
         return;
       }
-      const message = (JSON.parse(result.getString()) as string) +
-        (this.requestFailures.length ? '\n\n' + this.requestFailures.join('\n') : '');
-      this.getUIContext().showAlertDialog({
-        title: $r('app.string.page_diagnostics'), message,
-        confirm: { value: $r('app.string.confirm'), action: () => {} }
-      });
     });
   }
 
@@ -279,8 +283,23 @@ struct Index {
           .multiWindowAccess(true)
           .allowWindowOpenMethod(true)
           .width('100%').height('100%')
-          .onControllerAttached(() => { this.attached = true; })
-          .onPageBegin(() => { this.failed = false; this.requestFailures = []; })
+          .onControllerAttached(() => {
+            this.attached = true;
+            // 官网将额外产品标识判为未知浏览器；保留系统、设备和实际兼容版本。
+            try {
+              const userAgent = this.controller.getUserAgent().replace(/\s+ArkWeb\/[\d.]+/g, '');
+              this.controller.setCustomUserAgent(userAgent);
+            } catch (error) {
+              hilog.error(DOMAIN, 'EndfieldCloud', '{"event":"browser.configure_failed","code":%{public}d}',
+                (error as BusinessError).code);
+              this.operationFailed = true;
+            }
+          })
+          .onPageBegin(() => {
+            this.failed = false;
+            this.requestFailures = [];
+            this.diagnosticsSampling = false;
+          })
           .onPageEnd(() => {
             hilog.info(DOMAIN, 'EndfieldCloud', '{"event":"page.loaded"}');
             this.fitOfficialMenu();
@@ -311,6 +330,18 @@ struct Index {
           })
           .onConsole((event) => {
             const message = event.message.getMessage();
+            if (message.startsWith('EndfieldDiagnostics:')) {
+              const result = JSON.parse(message.substring('EndfieldDiagnostics:'.length)) as PageDiagnostics;
+              if (this.diagnosticsSampling && result.id === this.diagnosticsId) {
+                this.diagnosticsSampling = false;
+                this.getUIContext().showAlertDialog({
+                  title: $r('app.string.page_diagnostics'),
+                  message: result.message + (this.requestFailures.length ? '\n\n' + this.requestFailures.join('\n') : ''),
+                  confirm: { value: $r('app.string.confirm'), action: () => {} }
+                });
+              }
+              return true;
+            }
             const codes = message.match(/net::ERR_[A-Z_]+|Failed to fetch|CORS/g);
             if (codes) {
               const hosts = message.match(/https?:\/\/[a-z0-9.:-]+/gi) || [];
@@ -361,7 +392,8 @@ struct Index {
           .bindMenu([
             { value: $r('app.string.reload'), enabled: this.attached, action: () => this.reload() },
             { value: $r('app.string.browser'), action: () => this.openBrowser() },
-            { value: $r('app.string.diagnostics'), enabled: this.attached, action: () => this.showDiagnostics() }
+            { value: $r('app.string.diagnostics'), enabled: this.attached && !this.diagnosticsSampling,
+              action: () => this.showDiagnostics() }
           ], {
             placement: Placement.Left,
             onAppear: () => { clearTimeout(this.toolsTimer); this.lastBackAt = 0; },

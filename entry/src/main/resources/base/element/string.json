@@ -38,6 +38,17 @@
     { "name": "viewport_size", "value": "网页视口：" },
     { "name": "screen_size", "value": "屏幕尺寸与像素比：" },
     { "name": "visible_size", "value": "可见区域：" },
-    { "name": "safe_area", "value": "安全区（上右下左）：" }
+    { "name": "safe_area", "value": "安全区（上右下左）：" },
+    { "name": "sampling_hint", "value": "正在采样，请保持游戏画面 5 秒" },
+    { "name": "sample_duration", "value": "采样时长：" },
+    { "name": "seconds", "value": " 秒" },
+    { "name": "presented_fps", "value": "平均显示帧率：" },
+    { "name": "fps_unit", "value": " 帧/秒" },
+    { "name": "sample_dropped", "value": "采样丢帧：" },
+    { "name": "sample_decode", "value": "平均解码处理耗时：" },
+    { "name": "milliseconds", "value": " 毫秒" },
+    { "name": "not_reported", "value": "未提供" },
+    { "name": "sample_changed", "value": "画面已切换，请重新诊断" },
+    { "name": "sample_long_tasks", "value": "页面长任务总耗时：" }
   ]
 }
