@@ -1,0 +1,43 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "云·终末地"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "云·终末地"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "云·终末地"
+    },
+    { "name": "reload", "value": "重新加载" },
+    { "name": "browser", "value": "浏览器打开" },
+    { "name": "diagnostics", "value": "诊断" },
+    { "name": "tools", "value": "工具" },
+    { "name": "exit_hint", "value": "再次返回退出应用" },
+    { "name": "load_failed", "value": "页面加载失败，请重试" },
+    { "name": "close_page", "value": "关闭页面" },
+    { "name": "cancel", "value": "取消" },
+    { "name": "confirm", "value": "确定" },
+    { "name": "reload_confirm", "value": "重新加载可能中断当前游戏，是否继续？" },
+    { "name": "operation_failed", "value": "操作失败，请重试" },
+    { "name": "page_diagnostics", "value": "页面诊断" },
+    { "name": "no_video", "value": "未检测到视频" },
+    { "name": "video_size", "value": "视频尺寸：" },
+    { "name": "total_frames", "value": "累计帧数：" },
+    { "name": "dropped_frames", "value": "丢弃帧数：" },
+    { "name": "playback_state", "value": "播放状态：" },
+    { "name": "paused", "value": "已暂停" },
+    { "name": "playing", "value": "播放中" },
+    { "name": "network_state", "value": "网络状态：" },
+    { "name": "online", "value": "已连接" },
+    { "name": "offline", "value": "未连接" },
+    { "name": "canvas_render", "value": "画布渲染：" },
+    { "name": "viewport_size", "value": "网页视口：" },
+    { "name": "screen_size", "value": "屏幕尺寸与像素比：" },
+    { "name": "visible_size", "value": "可见区域：" },
+    { "name": "safe_area", "value": "安全区（上右下左）：" }
+  ]
+}
